@@ -56,3 +56,41 @@ func TestShouldRollbackStatUpdatesOnFailure(t *testing.T) {
 		t.Errorf("there were unfulfilled expections: %s", err)
 	}
 }
+
+func TestGetProviderByName(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("Could not mock the database connection: %s", err)
+	}
+	defer db.Close()
+
+	rows := sqlmock.NewRows([]string{"id", "name", "searchable"}).
+		AddRow(1, "Foobar", true)
+
+	mock.ExpectQuery("SELECT (.+) FROM user WHERE name LIKE \\$1$").WithArgs("Foobar").WillReturnRows(rows)
+
+	var (
+		id         int64
+		name       string
+		searchable bool
+	)
+
+	err = db.QueryRow(`
+		SELECT id, name, searchable
+		FROM user
+		WHERE
+			name LIKE $1
+	`, "Foobar").Scan(&id, &name, &searchable)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if id != 1 || name != "Foobar" || !searchable {
+		t.Fatalf("invalid row scanned")
+	}
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("There are unfulfilled expectation: %s", err)
+	}
+}
